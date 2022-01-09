@@ -588,6 +588,60 @@ DrvBuildDevmodeList(
     return TRUE;
 }
 
+BOOLEAN
+DrvProbeAndCaptureDevmode(
+    _Inout_ PGRAPHICS_DEVICE pGraphicsDevice,
+    _In_ PDEVMODEW RequestedMode,
+    _Out_ PDEVMODEW *pSelectedMode)
+{
+    PDEVMODEW pdmCurrent, pdm, pdmSelected = NULL;
+    ULONG i;
+    DWORD dwFields;
+
+    if (!DrvBuildDevmodeList(pGraphicsDevice))
+        return FALSE;
+
+    /* Search if requested mode exists */
+    for (i = 0; i < pGraphicsDevice->cDevModes; i++)
+    {
+        pdmCurrent = pGraphicsDevice->pDevModeList[i].pdm;
+
+        /* Compare asked DEVMODE fields
+         * Only compare those that are valid in both DEVMODE structs */
+        dwFields = pdmCurrent->dmFields & RequestedMode->dmFields;
+
+        /* For now, we only need those */
+        if ((dwFields & DM_BITSPERPEL) &&
+            (pdmCurrent->dmBitsPerPel != RequestedMode->dmBitsPerPel)) continue;
+        if ((dwFields & DM_PELSWIDTH) &&
+            (pdmCurrent->dmPelsWidth != RequestedMode->dmPelsWidth)) continue;
+        if ((dwFields & DM_PELSHEIGHT) &&
+            (pdmCurrent->dmPelsHeight != RequestedMode->dmPelsHeight)) continue;
+        if ((dwFields & DM_DISPLAYFREQUENCY) &&
+            (pdmCurrent->dmDisplayFrequency != RequestedMode->dmDisplayFrequency)) continue;
+
+        pdmSelected = pdmCurrent;
+        break;
+    }
+
+    if (!pdmSelected)
+        return FALSE;
+
+    /* Allocate memory for output */
+    pdm = ExAllocatePoolZero(PagedPool, pdmSelected->dmSize + pdmSelected->dmDriverExtra, GDITAG_DEVMODE);
+    if (!pdm)
+        return FALSE;
+
+    /* Copy selected mode */
+    RtlCopyMemory(pdm, pdmSelected, pdmSelected->dmSize);
+    RtlCopyMemory((PVOID)((ULONG_PTR)pdm + pdm->dmSize),
+                  (PVOID)((ULONG_PTR)pdmSelected + pdmSelected->dmSize),
+                  pdmSelected->dmDriverExtra);
+
+    *pSelectedMode = pdm;
+    return TRUE;
+}
+
 /** Exported functions ********************************************************/
 
 HANDLE

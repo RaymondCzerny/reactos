@@ -51,6 +51,13 @@ BOOLEAN
 DrvBuildDevmodeList(
     _Inout_ PGRAPHICS_DEVICE pGraphicsDevice);
 
+/* This function selects the best available mode corresponding to requested mode */
+BOOLEAN
+DrvProbeAndCaptureDevmode(
+    _Inout_ PGRAPHICS_DEVICE pGraphicsDevice,
+    _In_ PDEVMODEW RequestedMode,
+    _Out_ PDEVMODEW *pSelectedMode);
+
 PLDEVOBJ
 NTAPI
 EngGetLDEV(
