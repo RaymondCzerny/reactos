@@ -736,13 +736,15 @@ static	void	Control_DoWindow(CPanel* panel, HWND hWnd, HINSTANCE hInst)
 }
 #endif
 
+#ifdef __REACTOS__
+
 /** Structure for in and out data when
  *  search for the cpl dialog of first instance
  */
 typedef struct tagAppDlgFindData
 {
-    const WCHAR*    szCaption;  /**< second search value */
-    HWND            hResult;    /**< variable for result value */
+    PCWSTR  szCaption;  /**< Title of dialog as second search value */
+    HWND    hDlgResult; /**< Returned dialog handle or NULL if not found */
 } AppDlgFindData;
 
 /**
@@ -751,28 +753,26 @@ typedef struct tagAppDlgFindData
  * @param lParam Pointer of AppDlgFindData
  * @return TRUE: continue enumeration, FALSE: stop enumeration
  */
-static BOOL CALLBACK Control_EnumWinProc(
-  _In_ HWND   hwnd,
-  _In_ LPARAM lParam
+static BOOL CALLBACK
+Control_EnumWinProc(
+    _In_ HWND   hwnd,
+    _In_ LPARAM lParam
 )
 {
-    WCHAR szClassName[256];
-    if (GetClassNameW(hwnd, szClassName,
-                      sizeof(szClassName) / sizeof(WCHAR)))
+    WCHAR szClassName[256] = L"";
+    if (GetClassNameW(hwnd, szClassName, _countof(szClassName)))
     {
         // check of first search value
-        if (0 == wcscmp(L"#32770", szClassName))
+        if (wcscmp(L"#32770", szClassName) == 0)
         {
-            WCHAR szCaption[255];
-            ZeroMemory(szCaption, sizeof(szCaption));
-            if (GetWindowTextW(hwnd, szCaption,
-                               sizeof(szCaption) / sizeof(WCHAR)))
+            WCHAR szCaption[256] = L"";
+            if (GetWindowTextW(hwnd, szCaption, _countof(szCaption)))
             {
                 AppDlgFindData* pData = (AppDlgFindData*)lParam;
                 // check of second search value
-                if(NULL != wcsstr(szCaption, pData->szCaption))
+                if(wcsstr(szCaption, pData->szCaption) != NULL)
                 {
-                    pData->hResult = hwnd;
+                    pData->hDlgResult = hwnd;
                     return FALSE; // stop enumeration
                 }
             }
@@ -780,7 +780,7 @@ static BOOL CALLBACK Control_EnumWinProc(
     }
     return TRUE; // continue enumeration
 }
-
+#endif
 
 
 static	void	Control_DoLaunch(CPanel* panel, HWND hWnd, LPCWSTR wszCmd)
@@ -875,6 +875,7 @@ static	void	Control_DoLaunch(CPanel* panel, HWND hWnd, LPCWSTR wszCmd)
 #ifdef __REACTOS__
     ULONG_PTR cookie;
     BOOL bActivated;
+    AppDlgFindData findData;
 #endif
         /* we've been given a textual parameter (or none at all) */
         if (sp == -1) {
@@ -893,23 +894,25 @@ static	void	Control_DoLaunch(CPanel* panel, HWND hWnd, LPCWSTR wszCmd)
 
 #ifdef __REACTOS__
         bActivated = (applet->hActCtx != INVALID_HANDLE_VALUE ? ActivateActCtx(applet->hActCtx, &cookie) : FALSE);
-#endif
 
+        findData.szCaption = applet->info[sp].name;
+        findData.hDlgResult = NULL;
         // Find the dialog of this applet in the first instance.
-        // Note: The simpler function "FindWindow" does not find this type of dialogs.
-        AppDlgFindData findData = {applet->info[sp].name, NULL};
+        // Note: The simpler functions "FindWindow" or "FindWindowEx" does not find this type of dialogs.
         EnumWindows(Control_EnumWinProc, (LPARAM)&findData);
-        if (findData.hResult)
+        if (findData.hDlgResult)
         {
             // Bring the dialog of this applet to the foreground
-            BringWindowToTop(findData.hResult);
+            BringWindowToTop(findData.hDlgResult);
         }
         else
         {
+#endif
             if (!applet->proc(applet->hWnd, CPL_STARTWPARMSW, sp, (LPARAM)extraPmts))
                 applet->proc(applet->hWnd, CPL_DBLCLK, sp, applet->info[sp].data);
+#ifdef __REACTOS__
         }
-
+#endif
         Control_UnloadApplet(applet);
 
 #ifdef __REACTOS__
