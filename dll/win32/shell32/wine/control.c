@@ -766,7 +766,7 @@ Control_FindAndCheckAppFile(
     if (dwProcessId)
     {
         HANDLE hProcess;
-        hProcess = OpenProcess( PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, dwProcessId );
+        hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, dwProcessId);
         if (hProcess)
         {
             HMODULE hMods[1024];
