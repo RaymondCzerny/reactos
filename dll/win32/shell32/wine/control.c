@@ -28,6 +28,7 @@
 #define NO_SHLWAPI_REG
 #include <shlwapi.h>
 #include <shellapi.h>
+#include <psapi.h>
 #include <wine/debug.h>
 
 #include <strsafe.h>
@@ -743,9 +744,56 @@ static	void	Control_DoWindow(CPanel* panel, HWND hWnd, HINSTANCE hInst)
  */
 typedef struct tagAppDlgFindData
 {
-    PCWSTR  szCaption;  /**< Title of dialog as second search value */
+    PCWSTR  szAppFile;  /**< Full path to applet library as second search value */
     HWND    hDlgResult; /**< Returned dialog handle or NULL if not found */
 } AppDlgFindData;
+
+/**
+ * This function searches for an applet library and
+ * compares the file paths.
+ * @param hwnd The handle of the applet dialog
+ * @param szAppFile Full path of applet library
+ * @return TRUE if correct applet library otherwise FALSE
+ */
+static BOOL
+Control_FindAndCheckAppFile(
+    _In_ HWND   hwnd,
+    _In_ PCWSTR szAppFile
+)
+{
+    DWORD dwProcessId;
+    GetWindowThreadProcessId(hwnd, &dwProcessId);
+    if (dwProcessId)
+    {
+        HANDLE hProcess;
+        hProcess = OpenProcess( PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, dwProcessId );
+        if (hProcess)
+        {
+            HMODULE hMods[1024];
+            WCHAR szModName[MAX_PATH];
+            DWORD cbNeeded;
+
+            if (EnumProcessModules(hProcess, hMods, sizeof(hMods), &cbNeeded))
+            {
+
+                for (unsigned int i = 0; i < (cbNeeded / sizeof(HMODULE)); i++)
+                {
+                    // Get the full path to the module's file.
+                    if (GetModuleFileNameExW(hProcess, hMods[i], szModName, _countof(szModName)))
+                    {
+                        if (_wcsicmp(szModName, szAppFile) == 0)
+                        {
+                            return TRUE;
+                        }
+                    }
+                }
+            }
+            CloseHandle(hProcess);
+        }
+    }
+    return FALSE;
+}
+
 
 /**
  * Callback function to search applet dialog
@@ -765,16 +813,12 @@ Control_EnumWinProc(
         // check of first search value
         if (wcscmp(L"#32770", szClassName) == 0)
         {
-            WCHAR szCaption[256] = L"";
-            if (GetWindowTextW(hwnd, szCaption, _countof(szCaption)))
+            AppDlgFindData* pData = (AppDlgFindData*)lParam;
+            // check of second search value
+            if (Control_FindAndCheckAppFile(hwnd, pData->szAppFile))
             {
-                AppDlgFindData* pData = (AppDlgFindData*)lParam;
-                // check of second search value
-                if(wcsstr(szCaption, pData->szCaption) != NULL)
-                {
-                    pData->hDlgResult = hwnd;
-                    return FALSE; // stop enumeration
-                }
+                pData->hDlgResult = hwnd;
+                return FALSE; // stop enumeration
             }
         }
     }
@@ -895,7 +939,7 @@ static	void	Control_DoLaunch(CPanel* panel, HWND hWnd, LPCWSTR wszCmd)
 #ifdef __REACTOS__
         bActivated = (applet->hActCtx != INVALID_HANDLE_VALUE ? ActivateActCtx(applet->hActCtx, &cookie) : FALSE);
 
-        findData.szCaption = applet->info[sp].name;
+        findData.szAppFile = applet->cmd;
         findData.hDlgResult = NULL;
         // Find the dialog of this applet in the first instance.
         // Note: The simpler functions "FindWindow" or "FindWindowEx" does not find this type of dialogs.
