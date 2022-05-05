@@ -69,19 +69,20 @@ typedef struct REG_IME
     WCHAR szFileName[80];   /* The IME module filename */
 } REG_IME, *PREG_IME;
 
-extern HMODULE g_hImm32Inst;
-extern RTL_CRITICAL_SECTION g_csImeDpi;
-extern PIMEDPI g_pImeDpiList;
+extern HMODULE ghImm32Inst;
+extern RTL_CRITICAL_SECTION gcsImeDpi;
+extern PIMEDPI gpImeDpiList;
 extern PSERVERINFO gpsi;
 extern SHAREDINFO gSharedInfo;
-extern BYTE g_bClientRegd;
 extern HANDLE ghImmHeap;
 
 BOOL Imm32GetSystemLibraryPath(LPWSTR pszPath, DWORD cchPath, LPCWSTR pszFileName);
 VOID APIENTRY LogFontAnsiToWide(const LOGFONTA *plfA, LPLOGFONTW plfW);
 VOID APIENTRY LogFontWideToAnsi(const LOGFONTW *plfW, LPLOGFONTA plfA);
-PWND FASTCALL ValidateHwndNoErr(HWND hwnd);
 LPVOID FASTCALL ValidateHandleNoErr(HANDLE hObject, UINT uType);
+LPVOID FASTCALL ValidateHandle(HANDLE hObject, UINT uType);
+#define ValidateHwndNoErr(hwnd) ValidateHandleNoErr((hwnd), TYPE_WINDOW)
+#define ValidateHwnd(hwnd) ValidateHandle((hwnd), TYPE_WINDOW)
 BOOL APIENTRY Imm32CheckImcProcess(PIMC pIMC);
 
 LPVOID APIENTRY ImmLocalAlloc(DWORD dwFlags, DWORD dwBytes);
@@ -92,7 +93,7 @@ LPSTR APIENTRY Imm32AnsiFromWide(LPCWSTR pszW);
 LONG APIENTRY IchWideFromAnsi(LONG cchAnsi, LPCSTR pchAnsi, UINT uCodePage);
 LONG APIENTRY IchAnsiFromWide(LONG cchWide, LPCWSTR pchWide, UINT uCodePage);
 PIMEDPI APIENTRY Imm32FindOrLoadImeDpi(HKL hKL);
-LPINPUTCONTEXT APIENTRY Imm32LockIMCEx(HIMC hIMC, BOOL fSelect);
+LPINPUTCONTEXT APIENTRY Imm32InternalLockIMC(HIMC hIMC, BOOL fSelect);
 BOOL APIENTRY Imm32ReleaseIME(HKL hKL);
 BOOL APIENTRY Imm32IsSystemJapaneseOrKorean(VOID);
 
@@ -103,6 +104,7 @@ static inline BOOL Imm32IsCrossThreadAccess(HIMC hIMC)
     return (dwImeThreadId != dwThreadId);
 }
 
+// Win: TestWindowProcess
 static inline BOOL Imm32IsCrossProcessAccess(HWND hWnd)
 {
     return (NtUserQueryWindow(hWnd, QUERY_WINDOW_UNIQUE_PROCESS_ID) !=
@@ -127,7 +129,7 @@ BOOL APIENTRY
 Imm32MakeIMENotify(HIMC hIMC, HWND hwnd, DWORD dwAction, DWORD_PTR dwIndex, DWORD_PTR dwValue,
                    DWORD_PTR dwCommand, DWORD_PTR dwData);
 
-DWORD APIENTRY Imm32AllocAndBuildHimcList(DWORD dwThreadId, HIMC **pphList);
+DWORD APIENTRY Imm32BuildHimcList(DWORD dwThreadId, HIMC **pphList);
 
 INT APIENTRY
 Imm32ImeMenuAnsiToWide(const IMEMENUITEMINFOA *pItemA, LPIMEMENUITEMINFOW pItemW,
